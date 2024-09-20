@@ -64,7 +64,7 @@ def checkPrice(stock_info):
         else:
             print("不满足买入卖出指标，继续等待")
 
-
+# 主入口
 if __name__ == "__main__":
     while True:
         for stock_info in STOCK_CODE_LIST:
