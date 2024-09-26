@@ -2,11 +2,14 @@ import time
 import akshare as ak
 from datetime import date
 from datetime import datetime
-
 from EmailSender import EmailSender
 from DingTalkBot import DingTalkBot
+from StockInfo import StockInfo
+from StockService import StockService
 
 INDICATOR_THRESHOLD = 0.98848
+
+TU_SHARE_TOKEN = "2070e90dd4ee659292dfce6564bffd929d529eebf4364157fbd004d9"
 
 STOCK_CODE_LIST = [
     {"code": "002594", "name": "比亚迪"},
@@ -25,7 +28,11 @@ WEBHOOK_URL = 'https://oapi.dingtalk.com/robot/send?access_token=56e3ea829d8f663
 
 email_sender = EmailSender(SMTP_SERVER, SMTP_PORT, USERNAME, PASSWORD)
 dingding_robot = DingTalkBot(WEBHOOK_URL)
+stock_info = StockInfo()
 
+# 定义数据库连接信息
+DATABASE_URL = "mysql+pymysql://root:12345678@127.0.0.1:3306/microsoftrewards"
+stock_service = StockService(DATABASE_URL)
 
 def getLastPrice1(code):
     last_price_data = ak.stock_zh_a_hist_pre_min_em(symbol=code, start_time="09:00:00", end_time="15:40:00")
@@ -45,11 +52,17 @@ def getLastPrice(code):
     stock_bid_ask_em_df = ak.stock_bid_ask_em(symbol=code)
     return stock_bid_ask_em_df
 
+# 获取当日成交额
+def getDealBalance(code):
+    stock_sh = ak.stock_zh_a_spot_em()
+    stock_sh_main_board = stock_sh[stock_sh['所属市场'] == '上交所']
+    sse_turnover = stock_sh_main_board['成交额'].sum() / 10 ** 8  # 换
 
 def checkPrice(stock_info):
     price_data = getLastPrice(stock_info["code"])
     last_price = price_data['value'][20]
     avg_price = price_data['value'][21]
+    stock_service.update_last_price(stock_info["code"], last_price)
     if price_data is None:
         print('不在交易时间')
     else:
@@ -73,18 +86,6 @@ def checkPrice(stock_info):
             print("不满足买入卖出指标，继续等待")
 
 
-# def getDealDaily():
-#     current_date = datetime.now()
-#     date = current_date.strftime('%Y%m%d')
-#     print(date)
-#     stock_sse_deal_daily_df = ak.stock_sse_deal_daily(date=date)
-#     return stock_sse_deal_daily_df
-
-# if __name__ == "__main__":
-#     stock_sse_deal_daily_df = ak.stock_sse_deal_daily(date="20211227")
-#     print(stock_sse_deal_daily_df)
-#     print(getDealDaily())
-
 if __name__ == "__main__":
     while True:
         now = datetime.now().time()
@@ -93,7 +94,7 @@ if __name__ == "__main__":
         start_time2 = datetime.strptime("13:00:00", "%H:%M:%S").time()
         end_time2 = datetime.strptime("15:00:00", "%H:%M:%S").time()
 
-        if now < start_time1 or (end_time1 < now < start_time2) or now > end_time2:
+        if now < start_time1 or (end_time1 < now < start_time2):
             print(str(now) + "不在交易时间")
             time.sleep(1 * 60)
             continue
@@ -103,3 +104,4 @@ if __name__ == "__main__":
         print("等待 1 分钟...")
         print("\n")
         time.sleep(1 * 60)  # 暂停 2 分钟（120 秒）
+
